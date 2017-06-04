@@ -15,8 +15,10 @@ namespace MoleBash
         public MoleController[] Moles;
 
         public AnimationCurve MoleIntervals, MoleDurations;
-        
+
         public float Duration = 90;
+        private float CurrentDuration;
+        public float TimeRangeForMoleAppearences = 120;
 
         private float LastMoleAt = 0;
 
@@ -29,37 +31,79 @@ namespace MoleBash
         public VuforiaController Vuforia;
         public UIController UI;
 
+        private float IceMoleCounter = 0;
+        public float IceMoleInterval = 20;
+        public int IceMoleTimeExtend = 20;
+        public float IceMoleDuration = 1f;
+        public float FireMoleChance = 0.2f;
+        public float FireMoleTimePenalty = 10;
+        public int FireMoleScorePenalty = 5;
+        public float EarthMoleChance = 0.05f;
+        public int EarthMoleScore = 5;
+        
         void Start()
         {
             GameStartTime = 0;
             Score = 0;
             State = GameControllerState.Menu;
+            
+            UI.WipeMid += WipeMidCallback;
         }
 
         void Update()
         {
             if (State == GameControllerState.Playing)
             {
-                TimeRemaining = Duration - (Time.time - GameStartTime);
+                float TimeElapsed = Time.time - GameStartTime;
+                TimeRemaining = CurrentDuration - TimeElapsed;
+                IceMoleCounter -= Time.deltaTime;
                 if (TimeRemaining <= 0)
                 {
-                    State = GameControllerState.GameOver;
-                    HideMoles();
+                    bool allHidden = true;
+                    for (int m = 0; m < Moles.Length; m++)
+                    {
+                        MoleController mole = Moles[m];
+                        if (!mole.Hidden)
+                        {
+                            allHidden = false;
+                            break;
+                        }
+                    }
+                    if (allHidden)
+                    {
+                        State = GameControllerState.GameOver;
+                    }
                 }
                 else {
                     if (Moles.Length > 0)
                     {
-                        float elapsed = Time.time - GameStartTime;
-                        float moleInterval = MoleIntervals.Evaluate(elapsed / Duration);
+                        float moleInterval = MoleIntervals.Evaluate(TimeElapsed / CurrentDuration);
                         if (Time.time - LastMoleAt > moleInterval)
                         {
                             MoleController randomMole = Moles[Mathf.FloorToInt(UnityEngine.Random.value * Moles.Length)];
-                            if (randomMole.Hidden)
+                            if (randomMole.Hidden && randomMole.isActiveAndEnabled)
                             {
                                 LastMoleAt = Time.time;
-                                float runTime = Time.time - GameStartTime;
-                                float moleDuration = MoleDurations.Evaluate(Mathf.Clamp01(runTime / Duration));
-                                randomMole.Show(moleDuration);
+                                float moleDuration = MoleDurations.Evaluate(Mathf.Clamp01(TimeElapsed / TimeRangeForMoleAppearences));
+
+                                MoleType type = MoleType.Normal;
+                                float rand = UnityEngine.Random.value;
+                                if (IceMoleCounter < 0)
+                                {
+                                    IceMoleCounter = IceMoleInterval;
+                                    type = MoleType.Ice;
+                                    moleDuration = IceMoleDuration;
+                                }
+                                else if (rand < FireMoleChance)
+                                {
+                                    type = MoleType.Fire;
+                                }
+                                else if (rand < EarthMoleChance)
+                                {
+                                    type = MoleType.Earth;
+                                }
+
+                                randomMole.Show(moleDuration, type);
                             }
                         }
                     }
@@ -68,16 +112,47 @@ namespace MoleBash
                         if (Vuforia.TargetCopy != null)
                         {
                             Moles = Vuforia.TargetCopy.GetComponentsInChildren<MoleController>();
+                            HideMoles();
                         }
                     }
                     foreach (MoleController mole in Moles)
                     {
                         if (mole.Hit)
                         {
-                            Score++;
+                            if (mole.Type == MoleType.Normal)
+                            {
+                                Score++;
+                            }
+                            else if (mole.Type == MoleType.Ice)
+                            {
+                                CurrentDuration += IceMoleTimeExtend;
+                            }
+                            else if (mole.Type == MoleType.Earth)
+                            {
+                                Score += EarthMoleScore;
+                            }
+                            else if (mole.Type == MoleType.Fire)
+                            {
+                                CurrentDuration -= FireMoleTimePenalty;
+                                Score -= FireMoleScorePenalty;
+                            }
                         }
                     }
                 }
+            }
+        }
+
+        private void WipeMidCallback()
+        {
+            if (State == GameControllerState.GameOver)
+            {
+                HideMoles();
+            }
+            else if (State == GameControllerState.Playing)
+            {
+                ShowMoles();
+                GameStartTime = Time.time;
+                IceMoleCounter = IceMoleInterval;
             }
         }
 
@@ -86,6 +161,7 @@ namespace MoleBash
             foreach (MoleController mole in Moles)
             {
                 mole.gameObject.SetActive(false);
+                mole.Hit = false;
             }
         }
 
@@ -101,10 +177,10 @@ namespace MoleBash
 
         public void StartGame()
         {
-            GameStartTime = Time.time;
             State = GameControllerState.Playing;
             Score = 0;
-            ShowMoles();
+            CurrentDuration = Duration;
+            GameStartTime = Time.time;
             if (Vuforia != null && Vuforia.isActiveAndEnabled && !Vuforia.HasTarget)
             {
                 Vuforia.BuildTarget();
@@ -119,6 +195,7 @@ namespace MoleBash
         }
 
         private static GameController Instance;
+        
         public static GameController Get()
         {
             if (Instance == null)

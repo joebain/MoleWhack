@@ -3,6 +3,15 @@ using System.Collections;
 
 namespace MoleBash
 {
+    public enum MoleType
+    {
+        Normal,
+        Water,
+        Fire,
+        Earth,
+        Ice
+    }
+
     public class MoleController : MonoBehaviour
     {
 
@@ -11,6 +20,10 @@ namespace MoleBash
         private ParticleSystem hitParticles;
 
         private bool Appear = false;
+        
+        public MoleType Type {
+            get; private set;
+        }
 
         [SerializeField]
         private float Duration;
@@ -18,6 +31,7 @@ namespace MoleBash
         public bool Hidden {
             get
             {
+                if (animator == null) return true;
                 AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
                 return !animator.IsInTransition(0) && stateInfo.IsName("Hidden");
             }
@@ -25,6 +39,9 @@ namespace MoleBash
 
         private bool hit = false;
         private bool canHit = true;
+        private PaletteCycle palette;
+        private ParticleSystem clockParticle;
+        private ParticleSystem skullParticle;
 
         public bool Hit { get { bool wasHit = hit; hit = false; return wasHit; } set { hit = value; } }
 
@@ -33,7 +50,10 @@ namespace MoleBash
         {
             animator = GetComponent<Animator>();
             collider = GetComponent<Collider>();
-            hitParticles = GetComponentInChildren<ParticleSystem>();
+            hitParticles = transform.Find("HitParticles").GetComponent<ParticleSystem>();
+            clockParticle = transform.Find("ClockParticle").GetComponent<ParticleSystem>();
+            skullParticle = transform.Find("SkullParticle").GetComponent<ParticleSystem>();
+            palette = GetComponentInChildren<PaletteCycle>();
         }
 
         // Update is called once per frame
@@ -55,6 +75,14 @@ namespace MoleBash
                             hitParticles.Play();
                             this.hit = true;
                             canHit = false;
+                            if (Type == MoleType.Ice)
+                            {
+                                clockParticle.Play();
+                            }
+                            else if (Type == MoleType.Fire)
+                            {
+                                skullParticle.Play();
+                            }
                         }
                     }
 
@@ -101,17 +129,33 @@ namespace MoleBash
 
         public void Show(float duration)
         {
+            Show(duration, MoleType.Normal);
+        }
+
+        public void Show(float duration, MoleType type)
+        {
             Debug.Log("show mole " + gameObject.name + " with duration " + duration);
             Appear = true;
             Duration = duration;
+            Type = type;
+            palette.Palette = (int)type;
         }
 
         public void Hide()
         {
+            hit = false;
             Appear = false;
             Duration = 0;
-            animator.Play("Hide");
-            animator.ResetTrigger("Hide");// in case this was set
+            if (animator != null)
+            {
+                animator.Play("Hide");
+                animator.ResetTrigger("Hide");// in case this was set
+            }
+            Type = MoleType.Normal;
+            if (palette != null)
+            {
+                palette.Palette = 0;
+            }
         }
     }
 }

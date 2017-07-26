@@ -1,3 +1,6 @@
+// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
+// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+
 Shader "Hidden/Shader Forge/SFN_ViewVector" {
     Properties {
         _OutputMask ("Output Mask", Vector) = (1,1,1,1)
@@ -29,8 +32,8 @@ Shader "Hidden/Shader Forge/SFN_ViewVector" {
             VertexOutput vert (VertexInput v) {
                 VertexOutput o = (VertexOutput)0;
                 o.uv = v.texcoord0;
-                o.pos = mul(UNITY_MATRIX_MVP, v.vertex );
-                o.posWorld = mul(_Object2World, v.vertex);
+                o.pos = UnityObjectToClipPos(v.vertex );
+                o.posWorld = mul(unity_ObjectToWorld, v.vertex);
                 return o;
             }
             float4 frag(VertexOutput i) : COLOR {
